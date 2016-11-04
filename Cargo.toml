@@ -1,0 +1,17 @@
+[package]
+name = "wrk"
+version = "0.1.0"
+authors = ["Xudong Huang <huangxu008@hotmail.com>"]
+
+[dependencies]
+docopt = "0.6.86"
+rustc-serialize = "0.3.19"
+
+[dependencies.hyper]
+path = "../../rust/hyper"
+
+[dependencies.coroutine]
+path = "../coroutine-rs"
+
+[profile.release]
+opt-level=3
