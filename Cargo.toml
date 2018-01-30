@@ -4,14 +4,12 @@ version = "0.1.0"
 authors = ["Xudong Huang <huangxu008@hotmail.com>"]
 
 [dependencies]
-docopt = "0.6.86"
-rustc-serialize = "0.3.19"
-
-[dependencies.hyper]
-path = "../../rust/hyper"
-
-[dependencies.coroutine]
-path = "../coroutine-rs"
+docopt = "0.8"
+serde = "1"
+serde_derive = "1"
+may = { git = "https://github.com/Xudong-Huang/may.git" }
+may_http = { git = "https://github.com/rust-may/may_http.git" }
 
 [profile.release]
 opt-level=3
+lto = true

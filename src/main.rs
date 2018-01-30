@@ -1,18 +1,21 @@
-// #![deny(warnings)]
-extern crate hyper;
+#![deny(warnings)]
 extern crate docopt;
-extern crate coroutine;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate may;
+extern crate may_http;
+#[macro_use]
+extern crate serde_derive;
 
-use std::io::Write;
 use std::time::Duration;
+use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
 use docopt::Docopt;
-use hyper::header::ContentLength;
-use hyper::client::{Client, IntoUrl};
+use may::coroutine;
+use may_http::http::Uri;
+use may_http::client::HttpClient;
 
 const VERSION: &'static str = "0.1.0";
-
 const USAGE: &'static str = "
 Wrk.
 
@@ -29,7 +32,7 @@ Options:
   -d <time>         time to run in seconds [default: 10].
 ";
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 struct Args {
     arg_url: String,
     flag_c: usize,
@@ -38,23 +41,19 @@ struct Args {
     flag_v: bool,
 }
 
-macro_rules! t {
-    ($e: expr) => (match $e {
-        Err(err) => return println!("call = {:?}\nerr = {:?}", stringify!($e), err),
-        Ok(val) => val,
-    })
-}
-
 fn main() {
     let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.decode())
+        .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
     if args.flag_v {
         return println!("wrk: {}", VERSION);
     }
 
-    let url = t!(args.arg_url.into_url());
+    // let url = t!(args.arg_url.into_url());
+    let url: Uri = args.arg_url.parse().unwrap();
+    let remote = url.host().unwrap_or("127.0.0.1");
+    let port = url.port().unwrap_or(80);
     let test_conn_num = args.flag_c;
     let test_seconds = args.flag_d;
 
@@ -62,15 +61,15 @@ fn main() {
     let total_req = AtomicUsize::new(0);
     let total_bytes = AtomicUsize::new(0);
 
-    coroutine::scheduler_config().set_workers(2).set_io_workers(args.flag_t).set_stack_size(0x2000);
+    may::config().set_workers(1).set_io_workers(args.flag_t);
     coroutine::scope(|scope| {
-        scope.spawn(|| {
+        go!(scope, || {
             coroutine::sleep(Duration::from_secs(test_seconds as u64));
             stop.store(true, Ordering::Release);
         });
 
         // print the result every one second
-        scope.spawn(|| {
+        go!(scope, || {
             let mut time = 0;
             let mut last_request = 0;
             let mut last_bytes = 0;
@@ -86,27 +85,27 @@ fn main() {
                 let bytes = total_bytes - last_bytes;
                 last_bytes = total_bytes;
 
-                print!("\r{} Secs, Speed: {} requests/sec,  {} kb/sec\r",
-                       time,
-                       requests,
-                       bytes / 1024);
+                print!(
+                    "\r{} Secs, Speed: {} requests/sec,  {} kb/sec\r",
+                    time,
+                    requests,
+                    bytes / 1024
+                );
                 std::io::stdout().flush().ok();
             }
         });
 
         for _ in 0..test_conn_num {
-            scope.spawn(|| {
-                let mut client = Client::new();
-                client.set_read_timeout(Some(Duration::from_secs(4)));
+            go!(scope, || {
+                let mut buf = vec![0; 4096];
+                let mut client = HttpClient::connect(&(remote, port)).unwrap();
                 loop {
-                    let res = t!(client.get(url.clone()).send());
+                    // client.set_timeout(Some(Duration::from_secs(4)));
+                    let mut rsp = client.get(url.clone()).unwrap();
+
+                    let recv_bytes = rsp.read_to_end(&mut buf).unwrap();
                     total_req.fetch_add(1, Ordering::Relaxed);
-                    match res.headers.get::<ContentLength>() {
-                        None => return println!("unable to get ContentLength"),
-                        Some(&ContentLength(l)) => {
-                            total_bytes.fetch_add(l as usize, Ordering::Relaxed);
-                        }
-                    }
+                    total_bytes.fetch_add(recv_bytes, Ordering::Relaxed);
 
                     if stop.load(Ordering::Relaxed) {
                         break;
@@ -121,8 +120,10 @@ fn main() {
 
     println!("==================Benchmarking: {}==================", url);
     println!("{} clients, {} sec.\n", test_conn_num, test_seconds);
-    println!("Speed: {} request/sec, {} kb/sec",
-             total_req / test_seconds,
-             total_bytes / test_seconds / 1024);
+    println!(
+        "Speed: {} request/sec, {} kb/sec",
+        total_req / test_seconds,
+        total_bytes / test_seconds / 1024
+    );
     println!("Requests: {}", total_req);
 }
