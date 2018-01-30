@@ -102,7 +102,6 @@ fn main() {
                 loop {
                     // client.set_timeout(Some(Duration::from_secs(4)));
                     let mut rsp = client.get(url.clone()).unwrap();
-
                     let recv_bytes = rsp.read_to_end(&mut buf).unwrap();
                     total_req.fetch_add(1, Ordering::Relaxed);
                     total_bytes.fetch_add(recv_bytes, Ordering::Relaxed);
@@ -127,3 +126,8 @@ fn main() {
     );
     println!("Requests: {}", total_req);
 }
+
+//TODO:
+// 1. may_http client no need to copy head
+// 2. no need to read to another buf, already buffered in may_http
+// 3. use pipe line read to reduce read block for server
