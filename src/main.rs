@@ -105,6 +105,7 @@ fn main() {
                     let recv_bytes = rsp.read_to_end(&mut buf).unwrap();
                     total_req.fetch_add(1, Ordering::Relaxed);
                     total_bytes.fetch_add(recv_bytes, Ordering::Relaxed);
+                    buf.clear();
 
                     if stop.load(Ordering::Relaxed) {
                         break;
