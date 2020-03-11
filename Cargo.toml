@@ -4,10 +4,12 @@ version = "0.1.0"
 authors = ["Xudong Huang <huangxu008@hotmail.com>"]
 
 [dependencies]
-docopt = "0.8"
+docopt = "1"
 serde = "1"
 serde_derive = "1"
-may = { git = "https://github.com/Xudong-Huang/may.git" }
+http = "0.2"
+#may = { git = "https://github.com/Xudong-Huang/may.git" }
+may = "0.3"
 may_http = { git = "https://github.com/rust-may/may_http.git" }
 
 [profile.release]

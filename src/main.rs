@@ -5,14 +5,15 @@ extern crate may;
 extern crate may_http;
 #[macro_use]
 extern crate serde_derive;
+extern crate http;
 
-use std::time::Duration;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::Duration;
 
 use docopt::Docopt;
+use http::Uri;
 use may::coroutine;
-use may_http::http::Uri;
 use may_http::client::HttpClient;
 
 const VERSION: &'static str = "0.1.0";
@@ -53,7 +54,7 @@ fn main() {
     // let url = t!(args.arg_url.into_url());
     let url: Uri = args.arg_url.parse().unwrap();
     let remote = url.host().unwrap_or("127.0.0.1");
-    let port = url.port().unwrap_or(80);
+    let port = url.port().map(|p| p.as_u16()).unwrap_or(80);
     let test_conn_num = args.flag_c;
     let test_seconds = args.flag_d;
 
@@ -61,7 +62,7 @@ fn main() {
     let total_req = AtomicUsize::new(0);
     let total_bytes = AtomicUsize::new(0);
 
-    may::config().set_workers(1).set_io_workers(args.flag_t);
+    may::config().set_workers(args.flag_t);
     coroutine::scope(|scope| {
         go!(scope, || {
             coroutine::sleep(Duration::from_secs(test_seconds as u64));
